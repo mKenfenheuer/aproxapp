@@ -23,7 +23,7 @@ concurrency:
 env:
   OWNER_LOGIN: mKenfenheuer
   # Set to 'false' to also check issues you open yourself (handy for testing)
-  EXEMPT_OWNER: 'true'
+  EXEMPT_OWNER: 'false'
   NEEDS_LABEL: needs-diagnostics
   # Issues with any of these labels never require diagnostics
   EXEMPT_LABELS: enhancement,feature request,question,documentation,no-diagnostics-needed
