@@ -9,8 +9,12 @@ on:
     - cron: '17 6 * * *'   # daily sweep for stale issues
   workflow_dispatch:
     inputs:
+      all_open:
+        description: 'Check all open issues now'
+        type: boolean
+        default: false
       issue:
-        description: 'Issue number to (re)check now (optional)'
+        description: 'Or: check a single issue number (optional)'
         required: false
 
 permissions:
@@ -22,8 +26,6 @@ concurrency:
 
 env:
   OWNER_LOGIN: mKenfenheuer
-  # Set to 'false' to also check issues you open yourself (handy for testing)
-  EXEMPT_OWNER: 'false'
   NEEDS_LABEL: needs-diagnostics
   # Issues with any of these labels never require diagnostics
   EXEMPT_LABELS: enhancement,feature request,question,documentation,no-diagnostics-needed
@@ -52,7 +54,7 @@ jobs:
             const { owner, repo } = context.repo;
             const NEEDS = process.env.NEEDS_LABEL;
             const EXEMPT = process.env.EXEMPT_LABELS.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-            const EXEMPT_AUTHORS = process.env.EXEMPT_OWNER === 'true' ? [process.env.OWNER_LOGIN.toLowerCase()] : [];
+            const EXEMPT_AUTHORS = [process.env.OWNER_LOGIN.toLowerCase()];   // your own issues are never checked
             const DAYS = Number(process.env.CLOSE_AFTER_DAYS);
             const BOT = 'github-actions[bot]';
             const MARKER = '<!-- diagnostics-bot -->';
@@ -184,9 +186,19 @@ jobs:
               }
             }
 
+            async function checkAllOpen() {
+              const issues = await github.paginate(github.rest.issues.listForRepo,
+                { owner, repo, state: 'open', per_page: 100 });
+              const real = issues.filter(i => !i.pull_request);
+              core.info(`Checking all ${real.length} open issue(s)`);
+              for (const i of real) await handleIssue(i.number);
+            }
+
             if (context.eventName === 'schedule' || context.eventName === 'workflow_dispatch') {
+              const inputs = context.payload.inputs ?? {};
+              if (inputs.all_open === true || inputs.all_open === 'true') await checkAllOpen();
+              else if (inputs.issue) await handleIssue(Number(inputs.issue));
               await sweep();
-              if (context.payload.inputs?.issue) await handleIssue(Number(context.payload.inputs.issue));
             } else {
               await handleIssue(context.payload.issue.number);
             }
