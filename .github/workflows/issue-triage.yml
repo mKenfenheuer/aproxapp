@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: '17 6 * * *'   # daily sweep for stale issues
   workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Issue number to (re)check now (optional)'
+        required: false
 
 permissions:
   issues: write
@@ -18,6 +22,8 @@ concurrency:
 
 env:
   OWNER_LOGIN: mKenfenheuer
+  # Set to 'false' to also check issues you open yourself (handy for testing)
+  EXEMPT_OWNER: 'true'
   NEEDS_LABEL: needs-diagnostics
   # Issues with any of these labels never require diagnostics
   EXEMPT_LABELS: enhancement,feature request,question,documentation,no-diagnostics-needed
@@ -40,13 +46,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check for diagnostics
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { owner, repo } = context.repo;
             const NEEDS = process.env.NEEDS_LABEL;
             const EXEMPT = process.env.EXEMPT_LABELS.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-            const EXEMPT_AUTHORS = [process.env.OWNER_LOGIN.toLowerCase()];
+            const EXEMPT_AUTHORS = process.env.EXEMPT_OWNER === 'true' ? [process.env.OWNER_LOGIN.toLowerCase()] : [];
             const DAYS = Number(process.env.CLOSE_AFTER_DAYS);
             const BOT = 'github-actions[bot]';
             const MARKER = '<!-- diagnostics-bot -->';
@@ -162,7 +168,7 @@ jobs:
                   .map(e => Date.parse(e.created_at))
                   .pop() ?? Date.parse(issue.created_at);
 
-                if (labeledAt > cutoff) continue;
+                if (labeledAt > cutoff) { core.info(`#${issue.number}: flagged ${new Date(labeledAt).toISOString()}, not due yet`); continue; }
 
                 const { found } = await evaluate(issue);
                 const exempt = labelsOf(issue).some(l => EXEMPT.includes(l));
