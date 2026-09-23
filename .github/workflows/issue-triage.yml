@@ -125,6 +125,8 @@ jobs:
               const flagged = labels.includes(NEEDS.toLowerCase());
               const { found, botComment } = await evaluate(issue);
 
+              core.info(`#${number} by ${issue.user.login} | event=${context.eventName}/${context.payload.action} | state=${issue.state} | labels=[${labels}] | exempt=${exempt} | flagged=${flagged} | diagnostics=${found} | botComment=${!!botComment}`);
+
               if (found || exempt) {
                 if (!flagged) return;
                 await github.rest.issues.removeLabel({ owner, repo, issue_number: number, name: NEEDS }).catch(() => {});
@@ -158,6 +160,8 @@ jobs:
               const issues = await github.paginate(github.rest.issues.listForRepo,
                 { owner, repo, state: 'open', labels: NEEDS, per_page: 100 });
 
+              core.info(`Sweep: ${issues.length} open issue(s) labeled '${NEEDS}'`);
+
               for (const issue of issues) {
                 if (issue.pull_request) continue;
 
@@ -182,6 +186,7 @@ jobs:
 
             if (context.eventName === 'schedule' || context.eventName === 'workflow_dispatch') {
               await sweep();
+              if (context.payload.inputs?.issue) await handleIssue(Number(context.payload.inputs.issue));
             } else {
               await handleIssue(context.payload.issue.number);
             }
